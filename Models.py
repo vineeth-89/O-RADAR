@@ -2,9 +2,13 @@ from matplotlib import pyplot as plt
 import numpy as np
 import time
 from sklearn.model_selection import train_test_split, KFold
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, IsolationForest
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+
+from xgboost import XGBClassifier
 
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score,
@@ -25,11 +29,11 @@ from ORAN_Helper import Metric
 import joblib as jlb
 
 class MLP(nn.Module):
-    def __init__(self, number_of_features, learning_rate, dataloader):
+    def __init__(self, number_of_features, learning_rate, epochs):
         super(MLP, self).__init__()
 
-        self.dataloader = dataloader
         self.input_dimension = number_of_features
+        self.epochs = epochs
 
         self.model = nn.Sequential(
             nn.Linear(self.input_dimension, 128),
@@ -52,7 +56,8 @@ class MLP(nn.Module):
     def forward(self,x):
         return self.model(x)
 
-    def fit(self,X_train, y_train, epochs):
+    def fit_save(self,X_train, y_train):
+        epochs = self.epochs
         start_time = time.time()
         print_num = epochs // 10
 
@@ -110,79 +115,54 @@ class MLP(nn.Module):
         self.metrics = Metric(accuracy=acc, y_test=y_test, y_pred=y_pred,time_taken=self.time_taken)
 
         return self.metrics
-    
+
+class LSTM():
+    def __init__(self):
+        pass
+
 class LR():
     def __init__(self, save_name=""):
         self.save_name = save_name
         self.save_path = save_name + ".pkl"
         self.model = LogisticRegression(random_state=42, max_iter=100)
     
-    def fit_save(self, X_train, y_train, epochs=100,validation_size=0.1):
-        X_train,X_val,y_train, y_val = train_test_split(X_train, y_train,test_size=validation_size, random_state=42)
-
-        self.training_loss = []
-        self.validation_loss = []
-
+    def fit_save(self, X_train, y_train):
         start_time = time.time()
-        
-        for epoch in range(epochs):
-            self.model.fit(X=X_train, y=y_train)
-
-            y_train_pred = self.model.predict_proba(X_train)[:,1]
-            y_val_pred = self.model.predict_proba(X_val)[:,1]
-
-            train_loss = log_loss(y_train, y_train_pred)
-            val_loss = log_loss(y_val, y_val_pred)
-
-            self.training_loss.append(train_loss)
-            self.validation_loss.append(val_loss)           
+        self.model.fit(X_train, y_train)
 
         end_time = time.time()
 
-        print(f"Len of ttaining loss: {self.training_loss}")
-
         self.time_taken = end_time - start_time
 
-        print(f"Time taken by the model: {self.time_taken}")
+        model_data = {
+            "model": self.model,
+            "time": self.time_taken
+        }
 
-        self.plot_curves(training_loss=self.training_loss, validation_loss=self.validation_loss)
-
-        jlb.dump(self.model, self.save_path)
-    
-    def plot_curves(self, training_loss, validation_loss, name = ""):
-        plt.plot(list(range(1, len(training_loss) + 1)), training_loss, label="Training Loss", color='blue')
-        plt.plot(list(range(1, len(training_loss) + 1)), validation_loss, label="Validation Loss", color='red')
-        plt.xlabel("Epochs")
-        plt.ylabel("Log-Loss")
-        plt.title("Training vs Validation Loss Curve")
-        plt.legend()
-        plt.savefig(name + "_LR.png",dpi=200)
-        # plt.show()
+        jlb.dump(model_data,self.save_path)
 
     def predict(self, X_test):
-        y_pred = self.model.predict(X=X_test)
+        y_pred = self.model.predict(X_test)
 
         return y_pred
 
     def evaluate_and_get_metrics(self, X_test, y_test):
-        y_pred = self.predict(X_test)
-        acc = accuracy_score(y_test, y_pred)
+        y_pred = self.predict(X_test=X_test)
+        accuracy = accuracy_score(y_test, y_pred)
 
-        # Defining Metrics for this model
-        self.metrics = Metric(accuracy=acc, y_test=y_test, y_pred=y_pred,time_taken=self.time_taken)
+        metrics = Metric(accuracy=accuracy, y_test=y_test,y_pred=y_pred,time_taken=self.time_taken)
 
-        return self.metrics
-    
+        return metrics
+
     def evaluation_mode(self, model_path):
-        self.model = jlb.load(model_path)
+        model_data = jlb.load(model_path)
+        self.model = model_data["model"]
+        self.time_taken = model_data["time"]
 
-class LSTM():
-    def __init__(self):
-        pass
         
 class Isolation_Forest():
     def __init__(self, number_of_trees=100, random_state=42,contamination=0.05, save_name = ""):
-        self.model = Isolation_Forest(n_estimators=number_of_trees,contamination=contamination,random_state=random_state)
+        self.model = IsolationForest(n_estimators=number_of_trees,contamination=contamination,random_state=random_state)
 
         self.save_path = save_name + ".pkl"
     
@@ -194,13 +174,18 @@ class Isolation_Forest():
 
         self.time_taken = end_time - start_time
 
-        jlb.dump(self.model,self.save_path)
-    
+        model_data = {
+            "model": self.model,
+            "time": self.time_taken
+        }
+
+        jlb.dump(model_data,self.save_path)
+
     def predict(self, X_test):
         y_pred = self.model.predict(X_test)
 
         return y_pred
-    
+
     def evaluate_and_get_metrics(self, X_test, y_test):
         y_pred = self.predict(X_test=X_test)
         accuracy = accuracy_score(y_test, y_pred)
@@ -210,32 +195,39 @@ class Isolation_Forest():
         return metrics
 
     def evaluation_mode(self, model_path):
-        self.model = jlb.load(model_path) 
+        model_data = jlb.load(model_path)
+        self.model = model_data["model"]
+        self.time_taken = model_data["time"] 
 
 
 class Random_Forest():
     def __init__(self, number_of_trees = 100,random_state = 42, save_name = ""):
         self.number_of_trees = number_of_trees
         self.random_state = random_state
-        self.rf_clf = RandomForestClassifier(n_estimators=number_of_trees,random_state=random_state)
+        self.model = RandomForestClassifier(n_estimators=number_of_trees,random_state=random_state)
 
         self.save_path = save_name + ".pkl"
     
-    def fit_save(self, X_train,y_train):
+    def fit_save(self, X_train, y_train):
         start_time = time.time()
-        self.rf_clf.fit(X_train,y_train)
+        self.model.fit(X_train, y_train)
 
         end_time = time.time()
 
         self.time_taken = end_time - start_time
 
-        jlb.dump(self.rf_clf,self.save_path)
-    
+        model_data = {
+            "model": self.model,
+            "time": self.time_taken
+        }
+
+        jlb.dump(model_data,self.save_path)
+
     def predict(self, X_test):
-        y_pred = self.rf_clf.predict(X_test)
+        y_pred = self.model.predict(X_test)
 
         return y_pred
-    
+
     def evaluate_and_get_metrics(self, X_test, y_test):
         y_pred = self.predict(X_test=X_test)
         accuracy = accuracy_score(y_test, y_pred)
@@ -245,28 +237,35 @@ class Random_Forest():
         return metrics
 
     def evaluation_mode(self, model_path):
-        self.rf_clf = jlb.load(model_path)
+        model_data = jlb.load(model_path)
+        self.model = model_data["model"]
+        self.time_taken = model_data["time"]
 
 class Decision_Tree():
     def __init__(self, random_state = 42, save_name = ""):
-        self.dt_clf = DecisionTreeClassifier(random_state=random_state)
+        self.model = DecisionTreeClassifier(random_state=random_state)
 
         self.save_path = save_name + ".pkl"
-    def fit_save(self, X_train,y_train):
+    def fit_save(self, X_train, y_train):
         start_time = time.time()
-        self.dt_clf.fit(X_train,y_train)
+        self.model.fit(X_train, y_train)
 
         end_time = time.time()
 
         self.time_taken = end_time - start_time
 
-        jlb.dump(self.dt_clf,self.save_path)
-    
+        model_data = {
+            "model": self.model,
+            "time": self.time_taken
+        }
+
+        jlb.dump(model_data,self.save_path)
+
     def predict(self, X_test):
-        y_pred = self.dt_clf.predict(X_test)
+        y_pred = self.model.predict(X_test)
 
         return y_pred
-    
+
     def evaluate_and_get_metrics(self, X_test, y_test):
         y_pred = self.predict(X_test=X_test)
         accuracy = accuracy_score(y_test, y_pred)
@@ -276,7 +275,9 @@ class Decision_Tree():
         return metrics
 
     def evaluation_mode(self, model_path):
-        self.dt_clf = jlb.load(model_path)
+        model_data = jlb.load(model_path)
+        self.model = model_data["model"]
+        self.time_taken = model_data["time"]
 
 
 class Support_Vector_Machine():
@@ -292,13 +293,92 @@ class Support_Vector_Machine():
 
         self.time_taken = end_time - start_time
 
-        jlb.dump(self.model,self.save_path)
-    
+        model_data = {
+            "model": self.model,
+            "time": self.time_taken
+        }
+
+        jlb.dump(model_data,self.save_path)
+
     def predict(self, X_test):
         y_pred = self.model.predict(X_test)
 
         return y_pred
+
+    def evaluate_and_get_metrics(self, X_test, y_test):
+        y_pred = self.predict(X_test=X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        metrics = Metric(accuracy=accuracy, y_test=y_test,y_pred=y_pred,time_taken=self.time_taken)
+
+        return metrics
+
+    def evaluation_mode(self, model_path):
+        model_data = jlb.load(model_path)
+        self.model = model_data["model"]
+        self.time_taken = model_data["time"]
     
+
+class XGBoost():
+    def __init__(self,number_of_trees=100, learning_rate=0.1, random_state = 42, save_name = ""):
+        self.save_path = save_name + ".pkl"
+
+        self.model = XGBClassifier(n_estimators=number_of_trees, learning_rate=learning_rate,random_state=random_state)
+    
+    def fit_save(self, X_train, y_train):
+        start_time = time.time()
+        self.model.fit(X_train, y_train)
+
+        end_time = time.time()
+
+        self.time_taken = end_time - start_time
+
+        model_data = {
+            "model": self.model,
+            "time": self.time_taken
+        }
+
+        jlb.dump(model_data,self.save_path)
+
+    def predict(self, X_test):
+        y_pred = self.model.predict(X_test)
+
+        return y_pred
+
+    def evaluate_and_get_metrics(self, X_test, y_test):
+        y_pred = self.predict(X_test=X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        metrics = Metric(accuracy=accuracy, y_test=y_test,y_pred=y_pred,time_taken=self.time_taken)
+
+        return metrics
+
+    def evaluation_mode(self, model_path):
+        model_data = jlb.load(model_path)
+        self.model = model_data["model"]
+        self.time_taken = model_data["time"]
+    
+class K_Nearest_Neighbor():
+    def __init__(self,neighbors = 5, save_name = ""):
+        self.save_path = save_name + ".pkl"
+
+        self.model = KNeighborsClassifier(n_neighbors=neighbors)
+    
+    def fit_save(self, X_train, y_train):
+        start_time = time.time()
+        self.model.fit(X_train, y_train)
+
+        end_time = time.time()
+
+        self.time_taken = end_time - start_time
+
+        jlb.dump(self.model,self.save_path)
+
+    def predict(self, X_test):
+        y_pred = self.model.predict(X_test)
+
+        return y_pred
+
     def evaluate_and_get_metrics(self, X_test, y_test):
         y_pred = self.predict(X_test=X_test)
         accuracy = accuracy_score(y_test, y_pred)
@@ -309,6 +389,42 @@ class Support_Vector_Machine():
 
     def evaluation_mode(self, model_path):
         self.model = jlb.load(model_path)
-    
 
+class NavieBayes():
+    def __init__(self, save_name = ""):
+        self.save_path = save_name + ".pkl"
+
+        self.model = GaussianNB()
     
+    def fit_save(self, X_train, y_train):
+        start_time = time.time()
+        self.model.fit(X_train, y_train)
+
+        end_time = time.time()
+
+        self.time_taken = end_time - start_time
+
+        model_data = {
+            "model": self.model,
+            "time": self.time_taken
+        }
+
+        jlb.dump(model_data,self.save_path)
+
+    def predict(self, X_test):
+        y_pred = self.model.predict(X_test)
+
+        return y_pred
+
+    def evaluate_and_get_metrics(self, X_test, y_test):
+        y_pred = self.predict(X_test=X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        metrics = Metric(accuracy=accuracy, y_test=y_test,y_pred=y_pred,time_taken=self.time_taken)
+
+        return metrics
+
+    def evaluation_mode(self, model_path):
+        model_data = jlb.load(model_path)
+        self.model = model_data["model"]
+        self.time_taken = model_data["time"]
