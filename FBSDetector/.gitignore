@@ -1,0 +1,9 @@
+# folders
+*__pycache__/
+FBSDetector/
+dataset/signatures/
+dataset/NAS_PCAP_logs/
+outputs/
+models/
+app/
+venv/
