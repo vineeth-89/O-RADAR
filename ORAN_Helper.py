@@ -11,7 +11,6 @@ from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler, Qu
 from sklearn.model_selection import train_test_split, KFold
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
-import tensorflow as tf
 
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score,
@@ -44,7 +43,7 @@ class Processor():
 
         return high_corr_pairs
 
-    def drop_correlated_features(self, high_corr_pairs, data):
+    def drop_correlated_features(self, high_corr_pairs, data, print_it = False):
         drop_set = set()
 
         for pair in high_corr_pairs:
@@ -56,7 +55,9 @@ class Processor():
             drop_set.add(f1)
 
         print(f"Number of features to be dropped: {len(drop_set)}")
-        print(drop_set)
+
+        if print_it == True:
+            print(drop_set)
 
         drop_list = list(drop_set)
 
