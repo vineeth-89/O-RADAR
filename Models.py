@@ -28,16 +28,19 @@ import torch.optim as optim
 from ORAN_Helper import Metric
 import joblib as jlb
 
-from keras import Sequential
-
 class MLP(nn.Module):
-    def __init__(self, number_of_features = -1, learning_rate=0.001, epochs=100, save_name = ""):
+    def __init__(self, number_of_features = None, learning_rate=0.001, epochs=100, save_name = ""):
         super(MLP, self).__init__()
 
         self.input_dimension = number_of_features
         self.epochs = epochs
         self.save_path = save_name + ".pth"
+        self.learning_rate =learning_rate
 
+        if number_of_features is not None:
+            self._init_model_()
+            
+    def _init_model_(self):
         self.model = nn.Sequential(
             nn.Linear(self.input_dimension, 128),
             nn.ReLU(),
@@ -51,11 +54,11 @@ class MLP(nn.Module):
 
         self.loss_function = nn.BCELoss()
         # self.loss_function = nn.BCEWithLogitsLoss()
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        self.optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
         print(f"Using device: {self.device}")
-    
+
     def forward(self,x):
         return self.model(x)
 
@@ -64,8 +67,8 @@ class MLP(nn.Module):
         start_time = time.time()
         print_num = epochs // 10
 
-        X = torch.tensor(X_train, dtype=torch.float32).to(self.device)
-        y = torch.tensor(y_train, dtype=torch.float32).view(-1, 1).to(self.device)
+        X = torch.tensor(X_train.to_numpy(), dtype=torch.float32).to(self.device)
+        y = torch.tensor(y_train.to_numpy(), dtype=torch.float32).view(-1, 1).to(self.device)
 
         for epoch in range(1, epochs + 1):
             self.train()
@@ -97,7 +100,7 @@ class MLP(nn.Module):
 
     def predict_proba(self, X_test):
         self.eval()
-        X_test = torch.tensor(X_test, dtype=torch.float32).to(self.device)
+        X_test = torch.tensor(X_test.to_numpy(), dtype=torch.float32).to(self.device)
         with torch.no_grad():
             probs = self.forward(X_test).cpu().numpy()
         return probs
@@ -117,9 +120,16 @@ class MLP(nn.Module):
 
     def evaluation_mode(self, model_path):
         model_data = torch.load(model_path)
-        self.model = model_data["model"]
+
+        self.input_dimension = model_data["input_dim"]
         self.time_taken = model_data["time"]
-        self.input_dimension
+
+        self._init_model_()
+
+        self.load_state_dict(model_data["model"])
+        self.to(self.device)
+
+        
 
 class LSTM():
     def __init__(self):

@@ -71,7 +71,7 @@ def run_model(model_num, dataset_path,X_train,y_train):
     elif model_num == 8:
         model = NavieBayes(save_name=save_name)
     elif model_num == 9:
-        model = MLP(number_of_features=X_train.shape[1],learning_rate=0.01)
+        model = MLP(number_of_features=X_train.shape[1],learning_rate=0.01, save_name=save_name)
     elif model_num == 10:
         model = LSTM()
     

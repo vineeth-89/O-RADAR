@@ -1,7 +1,7 @@
 '''
 How to run
 
-python3 Eval_Model.py <Dataset_path> <Saved Model path> <list of numbers of models>
+python3 Eval_Model.py <Dataset_path> <Saved Model path>
 
 Models used:
 
