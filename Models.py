@@ -28,12 +28,15 @@ import torch.optim as optim
 from ORAN_Helper import Metric
 import joblib as jlb
 
+from keras import Sequential
+
 class MLP(nn.Module):
-    def __init__(self, number_of_features, learning_rate, epochs):
+    def __init__(self, number_of_features = -1, learning_rate=0.001, epochs=100, save_name = ""):
         super(MLP, self).__init__()
 
         self.input_dimension = number_of_features
         self.epochs = epochs
+        self.save_path = save_name + ".pth"
 
         self.model = nn.Sequential(
             nn.Linear(self.input_dimension, 128),
@@ -61,9 +64,6 @@ class MLP(nn.Module):
         start_time = time.time()
         print_num = epochs // 10
 
-        self.best_accuracy = 0
-        self.best_epoch = 0
-
         X = torch.tensor(X_train, dtype=torch.float32).to(self.device)
         y = torch.tensor(y_train, dtype=torch.float32).view(-1, 1).to(self.device)
 
@@ -79,10 +79,6 @@ class MLP(nn.Module):
             y_true = y.cpu().numpy()
             accuracy = accuracy_score(y_true, preds)
 
-            if accuracy > self.best_accuracy:
-                self.best_accuracy = accuracy
-                self.best_epoch = epoch
-
             if epoch == 1 or epoch % print_num == 0 or epoch == epochs:
                 print(f"Epoch {epoch} ---->>>>>>>>>>, Loss: {loss.item():.4f}, Train Accuracy: {accuracy:.4f}")
                 print()
@@ -91,10 +87,13 @@ class MLP(nn.Module):
 
         self.time_taken = end_time - start_time
 
-        print(f"\nTime Taken    : {self.time_taken:.2f} sec")
-        print(f"--Final Accuracy    : {self.time_taken:.2f} sec")
-        print(f"--Best Accuracy: {self.best_accuracy * 100}, epoch no. {self.best_epoch}")
+        model_data = {
+            "model": self.state_dict(),
+            "input_dim": self.input_dimension,
+            "time": self.time_taken
+        }
         
+        torch.save(model_data, self.save_path)
 
     def predict_proba(self, X_test):
         self.eval()
@@ -116,9 +115,16 @@ class MLP(nn.Module):
 
         return self.metrics
 
+    def evaluation_mode(self, model_path):
+        model_data = torch.load(model_path)
+        self.model = model_data["model"]
+        self.time_taken = model_data["time"]
+        self.input_dimension
+
 class LSTM():
     def __init__(self):
         pass
+
 
 class LR():
     def __init__(self, save_name=""):
@@ -155,8 +161,8 @@ class LR():
         return metrics
 
     def evaluation_mode(self, model_path):
-        model_data = jlb.load(model_path)
-        self.model = model_data["model"]
+        model_data = torch.load(model_path)
+        self
         self.time_taken = model_data["time"]
 
         
